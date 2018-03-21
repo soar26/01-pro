@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="utf-8" />
+<title>Web01</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<link rel="stylesheet" type="text/css" href="../static/layui-v2.2.5/css/layui.css" th:href="@{/layui-v2.2.5/css/layui.css}"/>
+<script type="text/javascript" src="../static/layui-v2.2.5/layui.js"  th:src="@{/layui-v2.2.5/layui.js}"></script>
+<script type="text/javascript" src="../static/jquery-3.3.1.min.js" th:src="@{/jquery-3.3.1.min.js}"></script>
+<style type="text/css">
+	.layui-table-page,.demoTable{
+		text-align:center;
+	}
+</style>
+</head>
+<body>
+<!-- 添加+搜索框 -->
+<br >
+<div class="demoTable" >
+   姓名：
+  <div class="layui-inline">
+    <input class="layui-input" id="name" name="name" type="text"  value="" autocomplete="off">
+  </div>
+    最小年龄：
+  <div class="layui-inline">
+    <input class="layui-input" id="minAge" name="minAge" type="text" value=""   autocomplete="off">
+  </div>
+   最大年龄：
+  <div class="layui-inline">
+    <input class="layui-input" id="maxAge" name="maxAge" type="text" value=""  autocomplete="off">
+  </div>
+</div>
+<br >
+<div class="demoTable" >
+  <button class="layui-btn" onclick="add()">添加</button>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <button class="layui-btn" data-type="reload">搜索</button>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <button class="layui-btn" data-type="getCheckData">批量删除</button>
+</div>
+<!-- table -->
+<table class="layui-hide" id="studentTable" lay-filter="demo"></table>
+<!-- 增删改查按钮 -->
+<script type="text/html" id="barDemo">
+  <a class="layui-btn layui-btn-primary layui-btn-xs" lay-event="detail">查看</a>
+  <a class="layui-btn layui-btn-xs" lay-event="edit">编辑</a>
+  <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+</script>
+<!-- 序号列 -->
+<script type="text/html" id="indexTpl">
+    {{d.LAY_TABLE_INDEX+1}}
+</script>
+<script type="text/javascript" th:inline="javascript">
+    //一弹二关三刷新
+    var columns = [
+				//fixed: 'left'只加一个
+				{type:'checkbox',fixed: 'left'}
+				,{title: '序号',templet: '#indexTpl'}
+				,{field : 'id',title : 'ID',sort : true}
+				,{field : 'name',title : '姓名'}
+				,{field : 'age',title : '年龄',sort : true}
+				,{title : '操作',fixed: 'right', align:'center', toolbar: '#barDemo'}
+				];
+    var winIndex = "";
+    layui.use(['laypage', 'layer', 'table', 'element','jquery'], function(){
+        var $ = layui.jquery
+                ,laypage = layui.laypage //分页
+                ,layer = layui.layer //弹层
+                ,table = layui.table //表格
+                ,element = layui.element; //元素操作
+            //第一个实例
+            table.render({
+                elem: '#studentTable'
+                ,id: 'studentTableId'
+                ,url : '/app/student/data' //数据接口
+                ,cellMinWidth: 80 //列宽自适应
+                ,page: {
+                    layout: ['limit', 'count', 'prev', 'page', 'next', 'skip'] //自定义分页布局
+                    ,curr: [[${currNo}]] //设定初始在第 5 页
+                    ,groups: 3 //只显示 1 个连续页码
+                    ,first: false //不显示首页
+                    ,last: false //不显示尾页
+                } //开启分页
+                ,cols: [columns]
+                ,limit:5
+                ,limits:[5,10,15]
+            });
+            //监听工具条
+            table.on('tool(demo)', function(obj){ //注：tool是工具条事件名，test是table原始容器的属性 lay-filter="对应的值"
+                var data = obj.data //获得当前行数据
+                    ,layEvent = obj.event //获得 lay-event 对应的值
+                var id = data.id;
+                if(layEvent === 'detail'){
+                    winIndex = layer.open({
+                        type: 1,
+                        content: '<input class="layui-input" id="tempId" name="tempId" type="text" value="'+data.id+'"  autocomplete="off"   readonly >'
+                        +'<input class="layui-input" id="tempName" name="tempName" type="text" value="'+data.name+'"  autocomplete="off"  readonly >'
+                        +'<input class="layui-input" id="tempAge" name="tempAge" type="text" value="'+data.age+'"  autocomplete="off"  readonly >'
+                        +'<button class="layui-btn" data-type="reload" onclick="closeWindow()">关闭</button>',
+                        area: ['320px', '195px'],
+                        maxmin: true
+                    });
+                } else if(layEvent === 'del'){
+                    winIndex = layer.confirm('真的删除行么', function(index){
+                        $.ajax({
+                            url: "/app/student/"+id,
+                            type: "DELETE",
+                            data:{},
+                            dataType: "json",
+                            success: function(data){
+                                if(data.state==1){
+                                    layer.msg("删除成功", {icon: 6,time: 2000},function () {
+                                        //删除这一行
+                                        obj.del();
+                                        //关闭父窗口
+                                        parent.layer.close(winIndex);
+                                        //刷新表单
+                                        refresh();
+                                    });
+                                }else{
+                                    layer.msg("删除失败", {icon: 5,time:2000},function () {
+                                        //关闭父窗口
+                                        parent.layer.close(winIndex);
+                                        //刷新表单
+                                        refresh();
+                                    });
+                                }
+                            }
+                        });
+                    });
+                } else if(layEvent === 'edit'){
+                    winIndex = layer.open({
+                        type: 1,
+                        content: '<input class="layui-input" id="tempId" name="tempId" type="text"value="'+data.id+'"  autocomplete="off">'
+                        +'<input class="layui-input" id="tempName" name="tempName" type="text" value="'+data.name+'"  autocomplete="off">'
+                        +'<input class="layui-input" id="tempAge" name="tempAge" type="text" value="'+data.age+'"  autocomplete="off">'
+                        +'<button class="layui-btn" data-type="reload" onclick="closeWindow()">取消</button>&nbsp;&nbsp;&nbsp;&nbsp;<button class="layui-btn" onclick="edit()">确定</button>',
+                        area: ['320px', '195px'],
+                        maxmin: true
+                    });
+                }
+
+            });
+            //搜索
+            var $ = layui.$, active = {
+                getCheckData: function(){
+                    //批量删除选中数据
+                    var checkStatus = table.checkStatus('studentTableId')
+                        ,data = checkStatus.data;
+                    var ids = new Array();
+                    for(var i=0;i<data.length;i++){
+                        ids[i] = data[i].id ;
+                    }
+                    winIndex = layer.confirm('真的删除行么', function(){
+                        $.ajax({
+                            url: "/app/student",
+                            type: "DELETE",
+                            data:JSON.stringify(ids),
+                            contentType:"application/json", //发送的数据类型
+                            dataType:"json",                   //接受的数据类型
+                            success: function(data){
+                                if(data.state==ids.length){
+                                    layer.msg("删除成功", {icon: 6,time: 2000},function () {
+                                        //关闭父窗口
+                                        parent.layer.close(winIndex);
+                                        //刷新表单
+                                        refresh();
+                                    });
+                                }else{
+                                    layer.msg("删除失败", {icon: 5,time:2000},function () {
+                                        //关闭父窗口
+                                        parent.layer.close(winIndex);
+                                        //刷新表单
+                                        refresh();
+                                    });
+                                }
+                            }
+                        });
+                    });
+                },
+                reload: function(){
+                    var name = $('#name').val();
+                    var minAge = $('#minAge').val();
+                    var maxAge = $('#maxAge').val();
+
+                    table.reload('studentTableId', {
+                        where: {
+                            name: name,
+                            minAge:minAge,
+                            maxAge:maxAge
+                        }
+                        ,page: {
+                            curr: 1 //设定初始在第 5 页
+                            , groups: 1 //只显示 1 个连续页码
+                            , first: false //不显示首页
+                            , last: false //不显示尾页
+                        }
+                    });
+                }
+            };
+            $('.demoTable .layui-btn').on('click', function(){
+                var type = $(this).data('type');
+                active[type] ? active[type].call(this) : '';
+            });
+    });
+    //layevent add
+    function add() {
+        winIndex = layer.open({
+            type: 1,
+            content:'<input class="layui-input" id="tempName" name="tempName" type="text" value=""  autocomplete="off">'
+            +'<input class="layui-input" id="tempAge" name="tempAge" type="text" value=""  autocomplete="off">'
+            +'<button class="layui-btn" data-type="reload" onclick="closeWindow()">取消</button>&nbsp;&nbsp;&nbsp;&nbsp;<button class="layui-btn" onclick="edit()">确定</button>',
+            area: ['320px', '195px'],
+            maxmin: true
+        });
+    }
+    function edit(){
+        var tempId = $("#tempId").val();
+        var tempName = $("#tempName").val();
+        var tempAge = $("#tempAge").val();
+        var method = tempId == undefined?"POST":"PUT";
+        $(function () {
+            $.ajax({
+                url: "/app/student",
+                type: method,
+                data:{"id":tempId,"name":tempName,"age":tempAge},
+                dataType: "json",
+                success: function(data){
+                    if(data.state==1){
+                        //提示框
+                        if('PUT' == method){
+                            layer.msg("修改成功", {icon: 6,time: 2000},function () {
+                                //关闭父窗口
+                                parent.layer.close(winIndex);
+                                //刷新表单
+                                refresh();
+                            });
+                        }else{
+                            layer.msg("添加成功", {icon: 6,time: 2000},function () {
+                                //关闭父窗口
+                                parent.layer.close(winIndex);
+                                //刷新表单
+                                refresh();
+                            });
+                        }
+                    }else{
+                        if('PUT' == method){
+                            layer.msg("修改失败", {icon: 5,time: 2000},function () {
+                                //关闭父窗口
+                                parent.layer.close(winIndex);
+                                //刷新表单
+                                refresh();
+                            });
+                        }else{
+                            layer.msg("添加失败", {icon: 5,time: 2000},function () {
+                                //关闭父窗口
+                                parent.layer.close(winIndex);
+                                //刷新表单
+                                refresh();
+                            });
+                        }
+                    }
+
+                }
+            });
+        });
+    }
+    function closeWindow(){
+        parent.layer.close(winIndex);
+    }
+    function refresh() {
+        window.location.href="/app/student/show";
+    }
+</script>
+</body>
+</html>
